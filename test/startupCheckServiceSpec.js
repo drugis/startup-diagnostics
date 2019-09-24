@@ -1,6 +1,5 @@
 'use strict';
 const sinon = require('sinon');
-const proxyquire = require('proxyquire');
 const chai = require('chai');
 const spies = require('chai-spies');
 const fs = require('fs');
@@ -14,8 +13,13 @@ const dbStub = {
   query: () => { }
 };
 
-const startupCheckService = proxyquire(
-  '../startupCheckService', {})(dbStub);
+const logger = {
+  info: () => {},
+  error: () => {}
+};
+
+const startupCheckService = require(
+  '../startupCheckService', {})(dbStub, logger);
 
 describe('the startup check service', () => {
   describe('getChecks', () => {
@@ -112,9 +116,9 @@ describe('the startup check service', () => {
 
       startupCheckService.checkPataviConnection(callback);
 
-      var expectedError1 = 'Patavi client key not found. Please make sure it is accessible at the specified location.';
-      var expectedError2 = 'Patavi client certificate not found. Please make sure it is accessible at the specified location.';
-      var expectedError3 = 'Patavi certificate authority not found. Please make sure it is accessible at the specified location.';
+      var expectedError1 = 'Patavi client key not found. Please make sure it is accessible at the specified location: ' + process.env.PATAVI_CLIENT_KEY;
+      var expectedError2 = 'Patavi client certificate not found. Please make sure it is accessible at the specified location: ' + process.env.PATAVI_CLIENT_CRT;
+      var expectedError3 = 'Patavi certificate authority not found. Please make sure it is accessible at the specified location: ' + process.env.PATAVI_CA;
       expect(callback).to.have.been.called.with(null, [expectedError1, expectedError2, expectedError3]);
     });
 
@@ -185,9 +189,9 @@ describe('the startup check service', () => {
 
       startupCheckService.checkPataviServerCertificates(callback);
 
-      var expectedError1 = 'Patavi server key not found. Please make sure it is accessible at the specified location.';
-      var expectedError2 = 'Patavi server certificate not found. Please make sure it is accessible at the specified location.';
-      var expectedError3 = 'Patavi certificate authority not found. Please make sure it is accessible at the specified location.';
+      var expectedError1 = 'Patavi server key not found. Please make sure it is accessible at the specified location: "ssl/server-key.pem"';
+      var expectedError2 = 'Patavi server certificate not found. Please make sure it is accessible at the specified location: "ssl/server-crt.pem"';
+      var expectedError3 = 'Patavi certificate authority not found. Please make sure it is accessible at the specified location: "ssl/ca-crt.pem"';
       expect(callback).to.have.been.called.with(null, [expectedError1, expectedError2, expectedError3]);
     });
   });

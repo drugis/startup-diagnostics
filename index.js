@@ -2,8 +2,8 @@
 const async = require('async');
 const _ = require('lodash');
 
-module.exports = function(db, appName) {
-  const startupCheckService = require('./startupCheckService')(db);
+module.exports = function(db, logger, appName) {
+  const startupCheckService = require('./startupCheckService')(db, logger);
 
   function runStartupDiagnostics(callback) {
     var checks = startupCheckService.getChecks(appName);
@@ -27,7 +27,7 @@ module.exports = function(db, appName) {
 
   function logErrors(errors) {
     _.forEach(errors, function(message) {
-      console.error(message);
+      logger.error(message);
     });
   }
 

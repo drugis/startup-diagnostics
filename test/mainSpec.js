@@ -9,6 +9,10 @@ const expect = chai.expect;
 
 const dbStub = {};
 const appName = 'appName';
+const logger = {
+  info: () => {},
+  error: () => {}
+};
 const startupCheckServiceStub = {
   getChecks: chai.spy(),
 };
@@ -16,7 +20,7 @@ const startupCheckServiceStub = {
 const startupDiagnosticsService = proxyquire(
   '../index', {
   './startupCheckService': () => { return startupCheckServiceStub; }
-})(dbStub, appName);
+})(dbStub, logger, appName);
 
 describe('the startup diagnostics (index)', () => {
   describe('runStartupDiagnostics', () => {
