@@ -9,40 +9,11 @@ module.exports = function(db) {
   const checksByApplication = {
     MCDA: [checkDBConnection, checkPataviConnection],
     GeMTC: [checkDBConnection, checkPataviConnection],
-    Patavi: [checkDBConnection, checkCertificates, checkRabbit]
+    Patavi: [checkDBConnection, checkPataviServerCertificates, checkRabbit]
   };
 
   function getChecks(appName) {
     return checksByApplication[appName];
-  }
-
-  function checkRabbit(callback) {
-    amqp.connect('amqp://' + process.env.PATAVI_BROKER_HOST, function(error) {
-      var startupErrors = [];
-      if (error) {
-        startupErrors.push('AMQP connection to Rabbit unsuccessful. <i>' + error + '</i>.<br> Please make sure the Rabbit is running and the environment variables are set correctly.');
-      }
-      callback(null, startupErrors);
-    });
-  }
-
-  function checkCertificates(callback) {
-    var certificateErrors = getServerCertificateErrors();
-    callback(null, certificateErrors);
-  }
-
-  function getServerCertificateErrors() {
-    var errors = [];
-    if (!fs.existsSync('ssl/server-key.pem')) {
-      errors.push('Patavi server key not found. Please make sure it is accessible at the specified location.');
-    }
-    if (!fs.existsSync('ssl/server-crt.pem')) {
-      errors.push('Patavi server certificate not found. Please make sure it is accessible at the specified location.');
-    }
-    if (!fs.existsSync('ssl/ca-crt.pem')) {
-      errors.push('Patavi certificate authority not found. Please make sure it is accessible at the specified location.');
-    }
-    return errors;
   }
 
   function checkDBConnection(callback) {
@@ -71,16 +42,25 @@ module.exports = function(db) {
     }
   }
 
+  function getCertificateErrors() {
+    var errors = [];
+    if (!fs.existsSync(process.env.PATAVI_CLIENT_KEY)) {
+      errors.push('Patavi client key not found. Please make sure it is accessible at the specified location.');
+    }
+    if (!fs.existsSync(process.env.PATAVI_CLIENT_CRT)) {
+      errors.push('Patavi client certificate not found. Please make sure it is accessible at the specified location.');
+    }
+    if (!fs.existsSync(process.env.PATAVI_CA)) {
+      errors.push('Patavi certificate authority not found. Please make sure it is accessible at the specified location.');
+    }
+    return errors;
+  }
+
   function checkPataviServerConnection(callback, errors) {
     var httpsOptions = getHttpsOptions();
     var postRequest = https.request(httpsOptions, _.partial(pataviRequestCallback, callback, errors));
     postRequest.on('error', _.partial(pataviRequestErrorCallback, callback, errors));
     postRequest.end();
-  }
-
-  function pataviRequestErrorCallback(callback, errors, error) {
-    errors.push('Connection to Patavi unsuccessful: <i>' + error + '</i>.<br> Please make sure the Patavi server is running and the environment variables are set correctly.');
-    callback(null, errors);
   }
 
   function pataviRequestCallback(callback, errors, result) {
@@ -93,15 +73,40 @@ module.exports = function(db) {
     }
   }
 
-  function getCertificateErrors() {
+  function pataviRequestErrorCallback(callback, errors, error) {
+    errors.push('Connection to Patavi unsuccessful: <i>' + error + '</i>.<br> Please make sure the Patavi server is running and the environment variables are set correctly.');
+    callback(null, errors);
+  }
+
+  function checkRabbit(callback) {
+    amqp.connect('amqp://' + process.env.PATAVI_BROKER_HOST, function(error) {
+      var startupErrors = [];
+      if (error) {
+        startupErrors.push('AMQP connection to Rabbit unsuccessful. <i>' + error + '</i>.<br> Please make sure the Rabbit is running and the environment variables are set correctly.');
+      } else {
+        console.log('Connection to Rabbit successful');
+      }
+      callback(null, startupErrors);
+    });
+  }
+
+  function checkPataviServerCertificates(callback) {
+    var certificateErrors = getServerCertificateErrors();
+    if(!certificateErrors.length){
+      console.log('All certificates found');
+    }
+    callback(null, certificateErrors);
+  }
+
+  function getServerCertificateErrors() {
     var errors = [];
-    if (!fs.existsSync(process.env.PATAVI_CLIENT_KEY)) {
-      errors.push('Patavi client key not found. Please make sure it is accessible at the specified location.');
+    if (!fs.existsSync('ssl/server-key.pem')) {
+      errors.push('Patavi server key not found. Please make sure it is accessible at the specified location.');
     }
-    if (!fs.existsSync(process.env.PATAVI_CLIENT_CRT)) {
-      errors.push('Patavi client certificate not found. Please make sure it is accessible at the specified location.');
+    if (!fs.existsSync('ssl/server-crt.pem')) {
+      errors.push('Patavi server certificate not found. Please make sure it is accessible at the specified location.');
     }
-    if (!fs.existsSync(process.env.PATAVI_CA)) {
+    if (!fs.existsSync('ssl/ca-crt.pem')) {
       errors.push('Patavi certificate authority not found. Please make sure it is accessible at the specified location.');
     }
     return errors;
@@ -120,6 +125,8 @@ module.exports = function(db) {
   return {
     checkDBConnection: checkDBConnection,
     checkPataviConnection: checkPataviConnection,
-    getChecks: getChecks
+    getChecks: getChecks,
+    checkPataviServerCertificates: checkPataviServerCertificates,
+    checkRabbit: checkRabbit
   };
 };

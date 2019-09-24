@@ -21,7 +21,7 @@ const startupDiagnosticsService = proxyquire(
 describe('the startup diagnostics (index)', () => {
   describe('runStartupDiagnostics', () => {
     var getChecks;
-    var checkFunction = sinon.stub();
+    var checkFunction;
     const errorHeader = '<h3>' + appName + ' could not be started. The following errors occured:</h3>';
     const divStart = '<div style="padding: 10px">';
     const divEnd = '</div>';
@@ -29,7 +29,7 @@ describe('the startup diagnostics (index)', () => {
 
     beforeEach(() => {
       getChecks = sinon.stub(startupCheckServiceStub, 'getChecks');
-      getChecks.onCall(0).returns([checkFunction]);
+      checkFunction = sinon.stub();
     });
 
     afterEach(() => {
@@ -37,6 +37,7 @@ describe('the startup diagnostics (index)', () => {
     });
 
     it('should call the callback without errors', (done) => {
+      getChecks.onCall(0).returns([checkFunction]);
       checkFunction.onCall(0).yields(null, []);
       var callback = function(errors) {
         expect(errors).to.equal(undefined);
@@ -46,7 +47,8 @@ describe('the startup diagnostics (index)', () => {
       startupDiagnosticsService.runStartupDiagnostics(callback);
     });
 
-    it('should call the callback with a patavi connection error', (done) => {
+    it('should call the callback with an error returned by the checks function', (done) => {
+      getChecks.onCall(0).returns([checkFunction]);
       checkFunction.onCall(0).yields(null, [checkError]);
       var expectedError = errorHeader + divStart + checkError + divEnd;
       var callback = function(errors) {
@@ -59,7 +61,8 @@ describe('the startup diagnostics (index)', () => {
 
     it('should call the callback with an error if the parallel execution goes wrong', (done) => {
       var error = 'parallel error';
-      checkFunction.onCall(0).yields(null, []);
+      getChecks.onCall(0).returns([checkFunction]);
+      checkFunction.onCall(0).yields(error, []);
       var expectedError = errorHeader +
         divStart + 'Could not execute diagnostics, unknown error: ' + error + divEnd;
       var callback = function(errors) {
