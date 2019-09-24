@@ -118,8 +118,7 @@ describe('the startup check service', () => {
 
       var expectedError1 = 'Patavi client key not found. Please make sure it is accessible at the specified location: ' + process.env.PATAVI_CLIENT_KEY;
       var expectedError2 = 'Patavi client certificate not found. Please make sure it is accessible at the specified location: ' + process.env.PATAVI_CLIENT_CRT;
-      var expectedError3 = 'Patavi certificate authority not found. Please make sure it is accessible at the specified location: ' + process.env.PATAVI_CA;
-      expect(callback).to.have.been.called.with(null, [expectedError1, expectedError2, expectedError3]);
+      expect(callback).to.have.been.called.with(null, [expectedError1, expectedError2]);
     });
 
     it('should call the callback with a patavi connection error', () => {

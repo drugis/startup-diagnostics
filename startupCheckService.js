@@ -50,9 +50,6 @@ module.exports = function(db, logger) {
     if (!fs.existsSync(process.env.PATAVI_CLIENT_CRT)) {
       errors.push('Patavi client certificate not found. Please make sure it is accessible at the specified location: ' + process.env.PATAVI_CLIENT_CRT);
     }
-    if (!fs.existsSync(process.env.PATAVI_CA)) {
-      errors.push('Patavi certificate authority not found. Please make sure it is accessible at the specified location: ' + process.env.PATAVI_CA);
-    }
     return errors;
   }
 
@@ -113,13 +110,18 @@ module.exports = function(db, logger) {
   }
 
   function getHttpsOptions() {
-    return {
+    var httpsOptions = {
       hostname: process.env.PATAVI_HOST,
       port: process.env.PATAVI_PORT,
       key: fs.readFileSync(process.env.PATAVI_CLIENT_KEY),
-      cert: fs.readFileSync(process.env.PATAVI_CLIENT_CRT),
-      ca: fs.readFileSync(process.env.PATAVI_CA)
+      cert: fs.readFileSync(process.env.PATAVI_CLIENT_CRT)
     };
+    try {
+      httpsOptions.ca = fs.readFileSync(process.env.PATAVI_CA);
+    } catch (error) {
+      logger.debug('Certificate autority file not found at: ' + process.env.PATAVI_CA);
+    }
+    return httpsOptions;
   }
 
   return {
