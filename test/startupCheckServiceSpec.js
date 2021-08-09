@@ -2,15 +2,14 @@
 const sinon = require('sinon');
 const chai = require('chai');
 const spies = require('chai-spies');
-const fs = require('fs');
-const https = require('https');
 const amqp = require('amqplib/callback_api');
+const axios = require('axios');
 
 chai.use(spies);
 const expect = chai.expect;
 
 const dbStub = {
-  query: () => { }
+  query: () => {}
 };
 
 const logger = {
@@ -18,33 +17,33 @@ const logger = {
   error: () => {}
 };
 
-const startupCheckService = require(
-  '../startupCheckService', {})(dbStub, logger);
+const startupCheckService = require('../startupCheckService', {})(
+  dbStub,
+  logger
+);
 
 describe('the startup check service', () => {
   describe('getChecks', () => {
     var dbConnectionCheck = 'checkDBConnection';
     var pataviConnectionCheck = 'checkPataviConnection';
-    var pataviCertificatesCheck = 'checkPataviServerCertificates';
     var rabbitConnectionCheck = 'checkRabbit';
 
-    it('should return the correct checks for MCDA', ()=> {
+    it('should return the correct checks for MCDA', () => {
       var result = startupCheckService.getChecks('MCDA');
       expect(result[0].name).to.equal(dbConnectionCheck);
       expect(result[1].name).to.equal(pataviConnectionCheck);
     });
 
-    it('should return the correct checks for GeMTC', ()=> {
+    it('should return the correct checks for GeMTC', () => {
       var result = startupCheckService.getChecks('GeMTC');
       expect(result[0].name).to.equal(dbConnectionCheck);
       expect(result[1].name).to.equal(pataviConnectionCheck);
     });
 
-    it('should return the correct checks for Patavi', ()=> {
+    it('should return the correct checks for Patavi', () => {
       var result = startupCheckService.getChecks('Patavi');
       expect(result[0].name).to.equal(dbConnectionCheck);
-      expect(result[1].name).to.equal(pataviCertificatesCheck);
-      expect(result[2].name).to.equal(rabbitConnectionCheck);
+      expect(result[1].name).to.equal(rabbitConnectionCheck);
     });
   });
 
@@ -68,7 +67,10 @@ describe('the startup check service', () => {
 
     it('should call the callback with an array containting error messages, if there are any', () => {
       var dbError = 'db error';
-      var expectedErrorMessage = 'Connection to database unsuccessful. <i>' + dbError + '</i>.<br> Please make sure the database is running and the environment variables are set correctly.';
+      var expectedErrorMessage =
+        'Connection to database unsuccessful. <i>' +
+        dbError +
+        '</i>.<br> Please make sure the database is running and the environment variables are set correctly.';
       var callback = chai.spy();
       query.onCall(0).yields('db error');
       startupCheckService.checkDBConnection(callback);
@@ -77,121 +79,64 @@ describe('the startup check service', () => {
   });
 
   describe('checkPataviConnection', () => {
-    var existsSync;
-    var readFileSync;
-    var httpsRequest;
+    let axiosGet;
 
     beforeEach(() => {
-      existsSync = sinon.stub(fs, 'existsSync');
-      readFileSync = sinon.stub(fs, 'readFileSync');
-      httpsRequest = sinon.stub(https, 'request');
+      axiosGet = sinon.stub(axios, 'get');
     });
 
     afterEach(() => {
-      existsSync.restore();
-      readFileSync.restore();
-      httpsRequest.restore();
+      axiosGet.restore();
     });
 
     it('should call the callback with an empty array if there are no errors', () => {
-      var callback = chai.spy();
-      var result = {
-        statusCode: 200
+      const oldEnv = process.env;
+      process.env = {...process.env, PATAVI_API_KEY: 'testkey'};
+      const callback = chai.spy();
+      const result = {
+        status: 200
       };
-      var postRequest = {
-        on: () => { },
-        end: () => { }
-      };
-      existsSync.returns(true);
-      readFileSync.returns(true);
-      httpsRequest.onCall(0).yields(result).onCall(0).returns(postRequest);
+      const promise = Promise.resolve(result);
+      axiosGet.onCall(0).returns(promise);
 
-      startupCheckService.checkPataviConnection(callback);
-      expect(callback).to.have.been.called.with(null, []);
+      const checkPromise = startupCheckService.checkPataviConnection(callback);
+      return checkPromise.then(() => {
+        process.env = oldEnv;
+        expect(callback).to.have.been.called.with(null, []);
+      });
     });
 
-    it('should call the callback with certificate errors, if the certificates can not be found', () => {
+    it('should call the callback with an error, if the api key can not be found', () => {
       var callback = chai.spy();
-      existsSync.returns(false);
 
       startupCheckService.checkPataviConnection(callback);
 
-      var expectedError1 = 'Patavi client key not found. Please make sure it is accessible at the specified location: ' + process.env.PATAVI_CLIENT_KEY;
-      var expectedError2 = 'Patavi client certificate not found. Please make sure it is accessible at the specified location: ' + process.env.PATAVI_CLIENT_CRT;
-      expect(callback).to.have.been.called.with(null, [expectedError1, expectedError2]);
+      var expectedError = 'Patavi API key not found';
+      expect(callback).to.have.been.called.with(null, [expectedError]);
     });
 
     it('should call the callback with a patavi connection error', () => {
+      const oldEnv = process.env;
+      process.env = {...process.env, PATAVI_API_KEY: 'testkey'};
+
       var callback = chai.spy();
-      var error = 'post request error';
-      var postRequest = {
-        on: (event, postRequestCallback) => {
-          postRequestCallback(error);
-        },
-        end: () => { }
+      var error = {
+        message: 'post request error'
       };
-      existsSync.returns(true);
-      readFileSync.returns(true);
-      httpsRequest.onCall(0).returns(postRequest);
+      var getRequest = Promise.reject(error);
+      axiosGet.onCall(0).returns(getRequest);
 
-      startupCheckService.checkPataviConnection(callback);
+      const resultPromise = startupCheckService.checkPataviConnection(callback);
 
-      var expectedError = 'Connection to Patavi unsuccessful: <i>' + error + '</i>.<br> Please make sure the Patavi server is running and the environment variables are set correctly.';
-      expect(callback).to.have.been.called.with(null, [expectedError]);
-    });
+      const expectedError =
+        'Connection to Patavi unsuccessful: <i>' +
+        error.message +
+        '</i>.<br> Please make sure the Patavi server is running and the environment variables are set correctly.';
 
-    it('should call the callback with an unexpected status code error', () => {
-      var callback = chai.spy();
-      var result = {
-        statusCode: 201
-      };
-      var postRequest = {
-        on: () => { },
-        end: () => { }
-      };
-      existsSync.returns(true);
-      readFileSync.returns(true);
-      httpsRequest.onCall(0).yields(result).onCall(0).returns(postRequest);
-
-      startupCheckService.checkPataviConnection(callback);
-
-      var expectedError = 'Connection to Patavi successful but received incorrect status code: <i>' + result.statusCode + '</i>.';
-      expect(callback).to.have.been.called.with(null, [expectedError]);
-    });
-  });
-
-  describe('checkCertificates', () => {
-    var existsSync;
-    var httpsRequest;
-
-    beforeEach(() => {
-      existsSync = sinon.stub(fs, 'existsSync');
-      httpsRequest = sinon.stub(https, 'request');
-    });
-
-    afterEach(() => {
-      existsSync.restore();
-      httpsRequest.restore();
-    });
-
-    it('should call the callback with an empty array if there are no errors', () => {
-      var callback = chai.spy();
-      existsSync.returns(true);
-
-      startupCheckService.checkPataviServerCertificates(callback);
-      expect(callback).to.have.been.called.with(null, []);
-    });
-
-    it('should call the callback with certificate errors', () => {
-      var callback = chai.spy();
-      existsSync.returns(false);
-
-      startupCheckService.checkPataviServerCertificates(callback);
-
-      var expectedError1 = 'Patavi server key not found. Please make sure it is accessible at the specified location: "ssl/server-key.pem"';
-      var expectedError2 = 'Patavi server certificate not found. Please make sure it is accessible at the specified location: "ssl/server-crt.pem"';
-      var expectedError3 = 'Patavi certificate authority not found. Please make sure it is accessible at the specified location: "ssl/ca-crt.pem"';
-      expect(callback).to.have.been.called.with(null, [expectedError1, expectedError2, expectedError3]);
+      return resultPromise.then(() => {
+        process.env = oldEnv;
+        expect(callback).to.have.been.called.with(null, [expectedError]);
+      });
     });
   });
 
@@ -220,9 +165,11 @@ describe('the startup check service', () => {
       connect.onCall(0).yields(error);
 
       startupCheckService.checkRabbit(callback);
-      const expectedError = 'AMQP connection to Rabbit unsuccessful. <i>' + error + '</i>.<br> Please make sure the Rabbit is running and the environment variables are set correctly.';
+      const expectedError =
+        'AMQP connection to Rabbit unsuccessful. <i>' +
+        error +
+        '</i>.<br> Please make sure the Rabbit is running and the environment variables are set correctly.';
       expect(callback).to.have.been.called.with(null, [expectedError]);
     });
   });
-
 });
