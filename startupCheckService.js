@@ -48,16 +48,25 @@ module.exports = function (db, logger) {
   }
 
   function checkPataviServerConnection(callback) {
-    const url = `http://${process.env.PATAVI_HOST}:${process.env.PATAVI_PORT}`;
     const config = {
       headers: {
         'X-API-KEY': process.env.PATAVI_API_KEY
       }
     };
+    const pataviUrl = getPataviUrl();
+    logger.debug('connecting to patavi at: ' + pataviUrl);
     return axios
-      .get(url, config)
+      .get(pataviUrl, config)
       .then(_.partial(pataviRequestCallback, callback))
       .catch(_.partial(pataviRequestErrorCallback, callback));
+  }
+
+  function getPataviUrl() {
+    const protocol = process.env.SECURE_TRAFFIC === 'true' ? 'https' : 'http';
+    const portBlock = process.env.PATAVI_PORT
+      ? `:${process.env.PATAVI_PORT}`
+      : '';
+    return `${protocol}://${process.env.PATAVI_HOST}${portBlock}`;
   }
 
   function pataviRequestCallback(callback, result) {
