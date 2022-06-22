@@ -8,7 +8,7 @@
   "private": false,
   "dependencies": {
     "amqplib": "^0.8.0",
-    "async": "^3.2.0",
+    "async": "^3.2.2",
     "axios": "^0.21.1",
     "http-status-codes": "^2.1.4",
     "lodash": "^4.17.21"
